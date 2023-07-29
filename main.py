@@ -1,6 +1,6 @@
-import requests, lxml.html
-from pandas import read_html
 import argparse
+import requests_html as rh
+import pandas as pd
 
 parser = argparse.ArgumentParser(
     usage="%(prog)s -u 'Username' -P 'password' [-o file_name]",
@@ -31,28 +31,25 @@ parser.add_argument(
     default="Grade",
     help='Specify filename which your grades will be saved into.'
     )
-
 args = parser.parse_args()
 
 login_url = 'https://portal.aau.edu.et/login'
 home_url = 'https://portal.aau.edu.et/Home'
 grade_url = 'https://portal.aau.edu.et/Grade/GradeReport'
 
-aa = requests.session()
-login = aa.get(login_url)
 
-login_html = lxml.html.fromstring(login.text)
-hidden_inputs = login_html.xpath(r'//form//input[@type="hidden"]')
+session = rh.HTMLSession()
+login_response = session.get(login_url)
+hidden = login_response.html.find('form input[type="hidden"]',first=True)
 
-form = {x.attrib["name"]: x.attrib["value"] for x in hidden_inputs}
+form = {hidden.attrs["name"]: hidden.attrs["value"]}
 form['UserName'] = args.username
 form['Password'] = args.password
 
-response = aa.post(login_url,data=form)
-grade_html = aa.get(grade_url).content
 
-df_list = read_html(grade_html)
+response = session.post(login_url,data=form)
+grade_html = session.get(grade_url).content
 
-for i, df in enumerate(df_list):
-    df.to_csv('{}{}.csv'.format(args.output,i))
-    print('saved to {}{}.csv'.format(args.output,i))
+df = pd.read_html(grade_html)[0]
+df.to_csv('{}.csv'.format(args.output))
+print('saved to {}.csv'.format(args.output))
